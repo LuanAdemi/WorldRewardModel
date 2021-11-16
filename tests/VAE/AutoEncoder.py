@@ -1,12 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tqdm import tqdm
+from tqdm import tqdm_notebook
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 kernel_size = 4 # (4, 4) kernel
 init_channels = 8 # initial number of filters
-image_channels = 1 # number of image channels (3 for rgb, 1 for grayscale)
-latent_dim = 16 # latent dimension for sampling
+image_channels = 3 # number of image channels (3 for rgb, 1 for grayscale)
+latent_dim = 32 # latent dimension for sampling
 
 # define a Conv VAE
 class ConvVAE(nn.Module):
@@ -16,19 +18,19 @@ class ConvVAE(nn.Module):
         # encoder
         self.enc1 = nn.Conv2d(
             in_channels=image_channels, out_channels=init_channels, kernel_size=kernel_size, 
-            stride=2, padding=1
+            stride=2
         )
         self.enc2 = nn.Conv2d(
             in_channels=init_channels, out_channels=init_channels*2, kernel_size=kernel_size, 
-            stride=2, padding=1
+            stride=2
         )
         self.enc3 = nn.Conv2d(
             in_channels=init_channels*2, out_channels=init_channels*4, kernel_size=kernel_size, 
-            stride=2, padding=1
+            stride=2
         )
         self.enc4 = nn.Conv2d(
             in_channels=init_channels*4, out_channels=64, kernel_size=kernel_size, 
-            stride=2, padding=0
+            stride=2
         )
         
         # fully connected layers for learning representations
@@ -39,21 +41,22 @@ class ConvVAE(nn.Module):
         
         # decoder 
         self.dec1 = nn.ConvTranspose2d(
-            in_channels=64, out_channels=init_channels*8, kernel_size=kernel_size, 
-            stride=1, padding=0
+            in_channels=64, out_channels=init_channels*8, kernel_size=5, 
+            stride=1
         )
         self.dec2 = nn.ConvTranspose2d(
-            in_channels=init_channels*8, out_channels=init_channels*4, kernel_size=kernel_size, 
-            stride=2, padding=1
+            in_channels=init_channels*8, out_channels=init_channels*4, kernel_size=5, 
+            stride=2
         )
         self.dec3 = nn.ConvTranspose2d(
-            in_channels=init_channels*4, out_channels=init_channels*2, kernel_size=kernel_size, 
-            stride=2, padding=1
+            in_channels=init_channels*4, out_channels=init_channels*2, kernel_size=6, 
+            stride=2
         )
         self.dec4 = nn.ConvTranspose2d(
-            in_channels=init_channels*2, out_channels=image_channels, kernel_size=kernel_size, 
-            stride=2, padding=1
+            in_channels=init_channels*2, out_channels=image_channels, kernel_size=6, 
+            stride=2
         )
+        
     def reparameterize(self, mu, log_var):
         """
         :param mu: mean from the encoder's latent space
@@ -92,9 +95,10 @@ class ConvVAE(nn.Module):
         self.train()
         running_loss = 0.0
         counter = 0
-        for i, data in tqdm(enumerate(dataloader), total=int(len(dataset)/dataloader.batch_size)):
+        for i, data in enumerate(dataloader):
             counter += 1
             data = data[0]
+            data = data.to(device)
             optimizer.zero_grad()
             reconstruction, mu, logvar = self(data)
             bce_loss = criterion(reconstruction, data)
@@ -110,9 +114,10 @@ class ConvVAE(nn.Module):
         running_loss = 0.0
         counter = 0
         with torch.no_grad():
-            for i, data in tqdm(enumerate(dataloader), total=int(len(dataset)/dataloader.batch_size)):
+            for i, data in enumerate(dataloader):
                 counter += 1
                 data= data[0]
+                data = data.to(device)
                 reconstruction, mu, logvar = self(data)
                 bce_loss = criterion(reconstruction, data)
                 loss = final_loss(bce_loss, mu, logvar)
@@ -123,8 +128,6 @@ class ConvVAE(nn.Module):
                     recon_images = reconstruction
         val_loss = running_loss / counter
         return val_loss, recon_images
-    
-    
     
 def final_loss(bce_loss, mu, logvar):
     """

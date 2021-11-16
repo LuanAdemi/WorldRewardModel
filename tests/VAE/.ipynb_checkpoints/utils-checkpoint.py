@@ -3,6 +3,10 @@ import numpy as np
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 from torchvision.utils import save_image
+import pickle
+from torch.utils.data import Dataset, DataLoader
+
+import random
 
 to_pil_image = transforms.ToPILImage()
 
@@ -23,3 +27,29 @@ def save_loss_plot(train_loss, valid_loss):
     plt.legend()
     plt.savefig('out/loss.jpg')
     plt.show()
+    
+    
+class ImageDataset(Dataset):
+    """ A dataset class for the images captured in the CarRacing Env"""
+    
+    def __init__(self, filename):
+        """
+        Args:
+            filename (string): Path to the pickle file containing our
+                images as (3, 64, 64) tensors
+        """
+        
+        file = open(filename, "rb")
+        self.data = pickle.load(file)
+        
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        """
+        Args:
+            idx (int): the index of the desired element
+        """
+        
+        return self.data[idx], self.data[idx]
+        
